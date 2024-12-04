@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <semaphore.h>
+#include <stdbool.h>
+
 
 
 typedef struct {
@@ -11,7 +14,11 @@ typedef struct {
 
     const int score1;
     const int score2;
+
+    int expr;
 }Data;
+
+int occ = 0;
 
 
 
@@ -19,30 +26,38 @@ void *simul_game(void* arg){
     printf("Thread ID: %lu\n", pthread_self());
     Data* data = (Data*)arg;
 
-    int score1 = data->score1, score2 = data->score2;
-
-    for(unsigned int i=0; i < data->k; ++i){
-        score1 = rand() % 12 + 1;
-        score2 = rand() % 12 + 1;
-    }
-    
-    if (score1 > score2){
-        pthread_mutex_lock(data->mutex);
-        data->res[0]++;
-        pthread_mutex_unlock(data->mutex);
-    }
-    else if (score2 > score1){
-        pthread_mutex_lock(data->mutex);
-        data->res[1]++;
-        pthread_mutex_unlock(data->mutex);
-    } else {
-        pthread_mutex_lock(data->mutex);
-        data->res[2]++;
-        pthread_mutex_unlock(data->mutex);
-    }
     
 
+    while(true) {
+        pthread_mutex_lock(data->mutex);
+        int cell = occ++;
+        pthread_mutex_unlock(data->mutex);
 
+        if (cell >= data->expr) break;
+
+        int score1 = data->score1, score2 = data->score2;
+
+        for(unsigned int i=0; i < data->k; ++i){
+            score1 = rand() % 11 + 2;
+            score2 = rand() % 11 + 2;
+        }
+        
+        if (score1 > score2){
+            pthread_mutex_lock(data->mutex);
+            data->res[0]++;
+            pthread_mutex_unlock(data->mutex);
+        }
+        else if (score2 > score1){
+            pthread_mutex_lock(data->mutex);
+            data->res[1]++;
+            pthread_mutex_unlock(data->mutex);
+        } else {
+            pthread_mutex_lock(data->mutex);
+            data->res[2]++;
+            pthread_mutex_unlock(data->mutex);
+        }
+    }
+    pthread_exit(0);
 
 }
 
@@ -75,27 +90,19 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    Data data = {k, res, &mutex, score1, score2};
+    Data data = {k, res, &mutex, score1, score2, expr};
 
     int active_thrads = 0;
     
     clock_t start = clock();
-    for (int i = 0; i < expr; ++i){
-
-        if (active_thrads == max_threads) {
-            pthread_join(threads[--active_thrads], NULL);
-        }
-
-
-        if(pthread_create(&threads[active_thrads++], NULL, simul_game, &data) != 0){
-            fprintf(stderr, "Failed to create thread");
-            free(threads);
+    for (int i = 0; i <max_threads; ++i){
+        if(pthread_create(&threads[i], NULL, simul_game, &data) != 0){
+            fprintf(stderr, "Failed create thread");
             return 1;
         }
     }
-
-    while (active_thrads > 0){
-        pthread_join(threads[--active_thrads], NULL);
+    for (int i = 0; i < max_threads; ++i){
+        pthread_join(threads[i], NULL);
     }
     clock_t end = clock();
     double del_time = (double) end-start;
