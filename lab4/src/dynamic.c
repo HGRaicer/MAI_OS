@@ -1,4 +1,4 @@
-// program2.c: Динамическая загрузка библиотек
+// dynamic.c: Динамическая загрузка библиотек
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
