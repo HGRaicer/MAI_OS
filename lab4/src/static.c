@@ -1,4 +1,4 @@
-// program1.c: Линковка на этапе компиляции
+// static.c: Линковка на этапе компиляции
 #include <stdio.h>
 #include <stdlib.h>
 
