@@ -66,7 +66,14 @@ private:
         return y;
     }
 
-    std::unique_ptr<AVLNode<Key, Value>> insert(std::unique_ptr<AVLNode<Key, Value>> node, Key key, Value value) {
+    AVLNode<Key, Value>* findMin(AVLNode<Key, Value>* node) const {
+        while (node->left) {
+            node = node->left.get();
+        }
+        return node;
+    }
+
+     std::unique_ptr<AVLNode<Key, Value>> insert(std::unique_ptr<AVLNode<Key, Value>> node, Key key, Value value) {
         if (!node) return std::make_unique<AVLNode<Key, Value>>(key, value);
 
         if (key < node->key)
@@ -100,6 +107,51 @@ private:
         return node;
     }
 
+    std::unique_ptr<AVLNode<Key, Value>> erase(std::unique_ptr<AVLNode<Key, Value>> node, Key key) {
+        if (!node) return nullptr;
+
+        if (key < node->key) {
+            node->left = erase(std::move(node->left), key);
+        } else if (key > node->key) {
+            node->right = erase(std::move(node->right), key);
+        } else {
+            // Case 1: Node with only one child or no child
+            if (!node->left) {
+                return std::move(node->right);
+            } else if (!node->right) {
+                return std::move(node->left);
+            }
+
+            // Case 2: Node with two children
+            AVLNode<Key, Value>* minNode = findMin(node->right.get());
+            node->key = minNode->key;
+            node->value = minNode->value;
+            node->right = erase(std::move(node->right), minNode->key);
+        }
+
+        node->height = 1 + std::max(height(node->left.get()), height(node->right.get()));
+
+        int balance = balanceFactor(node.get());
+
+        if (balance > 1 && balanceFactor(node->left.get()) >= 0)
+            return rightRotate(std::move(node));
+
+        if (balance > 1 && balanceFactor(node->left.get()) < 0) {
+            node->left = leftRotate(std::move(node->left));
+            return rightRotate(std::move(node));
+        }
+
+        if (balance < -1 && balanceFactor(node->right.get()) <= 0)
+            return leftRotate(std::move(node));
+
+        if (balance < -1 && balanceFactor(node->right.get()) > 0) {
+            node->right = rightRotate(std::move(node->right));
+            return leftRotate(std::move(node));
+        }
+
+        return node;
+    }
+
     AVLNode<Key, Value>* search(AVLNode<Key, Value>* node, Key key) const {
         if (!node || node->key == key) return node;
 
@@ -122,6 +174,10 @@ public:
         root = insert(std::move(root), key, value);
     }
 
+    void erase(Key key) {
+        root = erase(std::move(root), key);
+    }
+
     Value* search(Key key) {
         auto node = search(root.get(), key);
         return node ? &node->value : nullptr;
@@ -133,9 +189,10 @@ public:
     }
 };
 
+
 AVLTree<int, NodeInfo> tree;
 
-bool isProcessAlive(int pid) {
+bool isProcessAlive(int pid, int id) {
     int status;
     pid_t result = waitpid(pid, &status, WNOHANG); // Проверяем состояние процесса
 
@@ -145,6 +202,7 @@ bool isProcessAlive(int pid) {
     } else if (result == pid) {
         // Процесс завершился, удаляем его из системы
         if (WIFEXITED(status) || WIFSIGNALED(status)) {
+            tree.erase(id);
             cout << "Process " << pid << " became a zombie and was reaped." << endl;
             return false;
         }
@@ -183,7 +241,7 @@ std::string execCommand(int id, const std::string& command) {
         return "Error: Node not found";
     }
 
-    if (!isProcessAlive(node_info->pid)){
+    if (!isProcessAlive(node_info->pid, node_info->id)){
         return "Error: Node process not alive";
     }
 
@@ -213,7 +271,7 @@ std::string pingNode(int id) {
         return "Error: Node not found";
     }
 
-    if (!isProcessAlive(node_info->pid)){
+    if (!isProcessAlive(node_info->pid, node_info->id)){
         return "Error: Node process not alive";
     }
 
